@@ -283,7 +283,8 @@ if st.button("🚀 Hitung Rekomendasi Kampus", type="primary"):
     if df_kampus["Nama Kampus"].duplicated().any():
         st.warning("⚠️ Ada nama kampus yang sama persis di tabel, sebaiknya dibedakan (mis. tambah nama jurusan).")
 
-    data_vikor = df_kampus.set_index("Nama Kampus")[
+    df_kampus["Label"] = df_kampus["Nama Kampus"].astype(str) + " — " + df_kampus["Jurusan"].astype(str)
+    data_vikor = df_kampus.set_index("Label")[
         ["Skor Kecocokan (ML)", "Akreditasi (angka)", "Daya Tampung", "Keketatan"]
     ]
     data_vikor.columns = KRITERIA_TETAP  # samakan nama kolom dengan bobot
