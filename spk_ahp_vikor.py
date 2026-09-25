@@ -145,13 +145,40 @@ with col_dl:
     template_csv = SAMPLE_KAMPUS.to_csv(index=False).encode("utf-8")
     st.download_button("⬇️ Unduh Template CSV", template_csv, "template_database_kampus.csv", "text/csv")
 
+REQUIRED_COLS = ["Nama Kampus", "Jurusan", "Akreditasi", "Daya Tampung", "Keketatan"]
+
 if uploaded is not None:
-    df_kampus = pd.read_csv(uploaded)
+    df_raw = pd.read_csv(uploaded)
+
+    st.write("**Kolom yang terbaca di CSV kamu:**", list(df_raw.columns))
+
+    missing = [c for c in REQUIRED_COLS if c not in df_raw.columns]
+    if missing:
+        st.warning(f"⚠️ Nama kolom CSV kamu tidak sama persis dengan yang dibutuhkan: {missing}. "
+                   f"Petakan manual di bawah supaya sistem tahu kolom mana yang mana.")
+        col_map = {}
+        map_cols = st.columns(len(REQUIRED_COLS))
+        for i, req_col in enumerate(REQUIRED_COLS):
+            with map_cols[i]:
+                pilihan_default = req_col if req_col in df_raw.columns else df_raw.columns[0]
+                col_map[req_col] = st.selectbox(
+                    f"Kolom untuk '{req_col}'",
+                    options=list(df_raw.columns),
+                    index=list(df_raw.columns).index(pilihan_default),
+                    key=f"map_{req_col}"
+                )
+        df_kampus = pd.DataFrame({req_col: df_raw[col_map[req_col]] for req_col in REQUIRED_COLS})
+    else:
+        df_kampus = df_raw[REQUIRED_COLS].copy()
 else:
     df_kampus = SAMPLE_KAMPUS.copy()
 
 df_kampus = st.data_editor(df_kampus, use_container_width=True, num_rows="dynamic",
                             key="editor_kampus")
+
+if "Jurusan" not in df_kampus.columns or df_kampus.empty:
+    st.error("⚠️ Data kampus belum lengkap / kolom 'Jurusan' tidak ditemukan. Cek pemetaan kolom di atas.")
+    st.stop()
 
 st.subheader("2️⃣ Skor Kecocokan dari Model ML (per Jurusan)")
 st.caption("Ini output dari model ML Alif. Input manual dulu di sini sebagai simulasi, sebelum nanti disambungkan otomatis ke model.")
