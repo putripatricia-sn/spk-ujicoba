@@ -246,18 +246,60 @@ with col_b:
 st.divider()
 
 # ------------------------------------------------------------------
-# TAHAP 4b: Slider preferensi user dikombinasikan dengan bobot AHP
+# TAHAP 4b: Preferensi siswa (Ranking/ROC ATAU Slider) dikombinasikan dengan bobot AHP
 # ------------------------------------------------------------------
-st.subheader("4️⃣ Preferensi Siswa (Slider) — dikombinasikan dengan Bobot Pakar")
-st.caption("Siswa bisa menggeser tingkat kepentingan tiap kriteria menurut prioritas pribadinya (mis. cari aman \u2192 geser Daya Tampung tinggi).")
+st.subheader("4️⃣ Preferensi Siswa — dikombinasikan dengan Bobot Pakar")
 
-pref_user = {}
-cols_pref = st.columns(n_k)
-for i, krit in enumerate(KRITERIA_TETAP):
-    with cols_pref[i]:
-        pref_user[krit] = st.slider(krit, 1, 5, 3, key=f"pref_{krit}")
+metode_pref = st.radio(
+    "Cara siswa mengisi preferensi:",
+    ["Ranking urutan prioritas (drag-order + ROC)", "Slider bebas 1-5 (versi lama)"],
+    horizontal=True,
+)
 
-pref_array = np.array([pref_user[k] for k in KRITERIA_TETAP], dtype=float)
+if metode_pref.startswith("Ranking"):
+    st.caption("Susun urutan kriteria dari yang PALING PENTING ke PALING KURANG PENTING "
+               "(klik kriteria satu per satu sesuai urutan prioritas kamu).")
+
+    urutan = st.multiselect(
+        "Urutan prioritas (klik satu-satu, dari paling penting dulu):",
+        options=KRITERIA_TETAP,
+        default=[],
+        key="urutan_prioritas",
+    )
+
+    if len(urutan) < n_k:
+        st.warning(f"⚠️ Pilih semua {n_k} kriteria secara berurutan untuk melanjutkan "
+                   f"(baru {len(urutan)}/{n_k} dipilih).")
+        st.stop()
+
+    # Hitung bobot pakai ROC (Rank Order Centroid)
+    # rank 1 = paling penting -> bobot terbesar
+    n = n_k
+    roc_weights = {}
+    for rank_pos, krit in enumerate(urutan, start=1):
+        w = sum(1.0 / k for k in range(rank_pos, n + 1)) / n
+        roc_weights[krit] = w
+
+    pref_array = np.array([roc_weights[k] for k in KRITERIA_TETAP], dtype=float)
+
+    df_urutan = pd.DataFrame({
+        "Urutan": list(range(1, n_k + 1)),
+        "Kriteria": urutan,
+        "Bobot ROC": [round(roc_weights[k], 4) for k in urutan],
+    })
+    st.dataframe(df_urutan, use_container_width=True, hide_index=True)
+    st.caption("Bobot ROC dihitung otomatis dari urutan: makin di atas, bobotnya makin besar "
+               "(rumus Rank Order Centroid), tanpa siswa perlu mengisi angka sama sekali.")
+
+else:
+    st.caption("Siswa menggeser tingkat kepentingan tiap kriteria menurut prioritas pribadinya "
+               "(mis. cari aman \u2192 geser Daya Tampung tinggi).")
+    pref_user = {}
+    cols_pref = st.columns(n_k)
+    for i, krit in enumerate(KRITERIA_TETAP):
+        with cols_pref[i]:
+            pref_user[krit] = st.slider(krit, 1, 5, 3, key=f"pref_{krit}")
+    pref_array = np.array([pref_user[k] for k in KRITERIA_TETAP], dtype=float)
 
 alpha = st.slider("Porsi pengaruh Preferensi Siswa vs Bobot Pakar (AHP)", 0.0, 1.0, 0.5, 0.05,
                    help="0 = 100% pakai bobot AHP pakar, 1 = 100% pakai preferensi siswa")
