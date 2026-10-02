@@ -12,13 +12,15 @@ Alur data:
   Skor ML (input Alif) -> Database Kampus -> Matriks Keputusan
   -> Bobot -> VIKOR -> Ranking
 
-Jalankan dengan: streamlit run spk_vikor_ahp_vikor.py
+Catatan: versi ini TIDAK memerlukan scipy. Korelasi Spearman dihitung
+menggunakan pandas.Series.corr(method="spearman") bawaan pandas.
+
+Jalankan dengan: streamlit run spk_ahp_vikor.py
 """
 
 import streamlit as st
 import pandas as pd
 import numpy as np
-from scipy.stats import spearmanr
 
 st.set_page_config(page_title="SPK Rekomendasi Kampus - VIKOR & AHP-VIKOR", layout="wide")
 
@@ -451,13 +453,13 @@ else:
                  "(positif = naik peringkat di AHP-VIKOR, negatif = turun):")
         st.dataframe(df_compare, use_container_width=True)
 
-        # Spearman Rank Correlation — sesuai metodologi Bab III
-        rho, p_value = spearmanr(df_compare["Rank VIKOR"], df_compare["Rank AHP-VIKOR"])
-        col_m1, col_m2 = st.columns(2)
-        with col_m1:
-            st.metric("Spearman Rank Correlation (ρ)", f"{rho:.4f}")
-        with col_m2:
-            st.metric("P-value", f"{p_value:.4f}")
+        # Spearman Rank Correlation dihitung dengan pandas (tanpa scipy)
+        rho = df_compare["Rank VIKOR"].corr(df_compare["Rank AHP-VIKOR"], method="spearman")
+
+        st.metric("Spearman Rank Correlation (ρ)", f"{rho:.4f}")
+        st.caption("Dihitung menggunakan pandas.Series.corr(method='spearman'). "
+                   "Nilai berkisar -1 hingga 1: semakin mendekati 1, semakin mirip urutan "
+                   "peringkat dari kedua metode.")
 
         if rho > 0.9:
             st.success("✅ Korelasi sangat kuat — kedua metode menghasilkan urutan peringkat yang "
@@ -488,4 +490,6 @@ with st.expander("ℹ️ Catatan Integrasi"):
       karena tidak membebani mereka dengan pengisian matriks AHP.
     - **Mode TA — Bandingkan Keduanya** dipakai untuk menghasilkan data analisis Bab IV skripsi
       (tabel perbandingan ranking, nilai Q, dan Spearman Rank Correlation).
+    - Versi file ini **tidak memerlukan scipy** — korelasi Spearman dihitung memakai pandas bawaan,
+      sehingga aman dijalankan di Streamlit Cloud tanpa perlu menambahkan requirements.txt khusus.
     """)
