@@ -1,18 +1,21 @@
 """
 SPK Rekomendasi Kampus/Jurusan - Capstone Project (VIKOR Murni)
 =============================================================
-- Menyediakan tombol upload CSV langsung di web Streamlit.
-- Mencegah error 'file not found'.
+Flow Sistem:
+1. Upload Database CSV PTN (data_jurusan_ptn.csv).
+2. Simulasi Output Modul Alif (Skor Akademik Rapor) & Modul Ghina (Skor Minat RIASEC).
+3. Pengaturan Preferensi Bobot oleh Siswa.
+4. Eksekusi Algoritma VIKOR Murni & Output Peringkat Rekomendasi.
 """
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 
-st.set_page_config(page_title="SPK Rekomendasi PTN - VIKOR", layout="wide")
+st.set_page_config(page_title="SPK Rekomendasi PTN - Capstone Project", layout="wide")
 
 # ------------------------------------------------------------------
-# Fungsi Inti VIKOR Murni
+# 1. Fungsi Inti Algoritma VIKOR Murni
 # ------------------------------------------------------------------
 def hitung_vikor(data, bobot, tipe, v=0.5):
     X = data.values.astype(float)
@@ -68,51 +71,59 @@ def map_akreditasi(val):
         return 1
 
 # ------------------------------------------------------------------
-# UI - Header & Sidebar
+# 2. Tampilan Antarmuka (UI) - Sidebar & Header
 # ------------------------------------------------------------------
-st.title("🎓 SPK Rekomendasi Kampus & Jurusan (Capstone Project)")
-st.caption("Sistem Pendukung Keputusan Pemilihan PTN menggunakan Metode VIKOR Murni")
+st.title("🎓 SPK Rekomendasi Pemilihan PTN")
+st.caption("Capstone Project Kelompok | Sistem Pendukung Keputusan Berbasis VIKOR Murni")
 
 with st.sidebar:
-    st.header("⚙️ Pengaturan VIKOR")
-    v_strategi = st.slider("Bobot strategi mayoritas (v)", 0.0, 1.0, 0.5, 0.05,
-                           help="v=0.5 konsensus seimbang antara utilitas kelompok dan penyesalan individual.")
+    st.header("⚙️ Konfigurasi Sistem")
+    v_strategi = st.slider("Parameter Strategi Mayoritas (v)", 0.0, 1.0, 0.5, 0.05,
+                           help="v=0.5 keseimbangan antara kelompok (S) dan risiko individu (R).")
+    st.divider()
+    st.markdown("### 👥 Pembagian Peran Tim:")
+    st.markdown("- **Alif:** Prediksi Skor Rapor (ML)")
+    st.markdown("- **Ghina:** Filter & Skor Minat RIASEC")
+    st.markdown("- **Putri:** Mesin SPK & Perangkingan (VIKOR)")
 
 st.divider()
 
 # ------------------------------------------------------------------
-# TAHAP 1: Upload File CSV Database
+# 3. TAHAP 1: Upload Database CSV PTN
 # ------------------------------------------------------------------
-st.subheader("1️⃣ Upload Database CSV PTN")
-uploaded_file = st.file_uploader("Unggah file 'data_jurusan_ptn.csv' di sini:", type=["csv"])
+st.subheader("📁 Tahap 1: Upload Database Pilihan PTN")
+uploaded_file = st.file_uploader("Unggah file 'data_jurusan_ptn.csv' dari komputer kamu:", type=["csv"])
 
 if uploaded_file is None:
-    st.info("📂 Silakan unggah file `data_jurusan_ptn.csv` terlebih dahulu menggunakan tombol di atas untuk melanjutkan.")
+    st.info("👋 Halo! Silakan unggah file `data_jurusan_ptn.csv` terlebih dahulu di atas untuk memulai simulasi sistem.")
     st.stop()
 
-# Baca CSV yang di-upload
 df_raw = pd.read_csv(uploaded_file)
 df_raw["akreditasi_angka"] = df_raw["akreditasi"].apply(map_akreditasi)
 df_raw["Label_Prodi"] = df_raw["jurusan"] + " — " + df_raw["nama_ptn"]
 
-st.success("✅ Data CSV berhasil dimuat!")
+st.success("✅ Database PTN berhasil dimuat ke sistem!")
 
 # ------------------------------------------------------------------
-# TAHAP 2: Pilih Prodi & Input Skor Integrasi
+# 4. TAHAP 2: Simulasi Input Siswa & Integrasi Tim (Alif & Ghina)
 # ------------------------------------------------------------------
-st.subheader("2️⃣ Pilih Program Studi & Input Skor (Alif & Ghina)")
+st.subheader("🎯 Tahap 2: Input Profil Siswa & Hasil Integrasi Modul")
+st.caption("Pilih prodi yang ingin dievaluasi, lalu tentukan skor simulasi dari model Alif dan Ghina.")
 
 pilihan_prodi = st.multiselect(
-    "Pilih prodi yang ingin dievaluasi:",
+    "Pilih Program Studi / Alternatif PTN:",
     options=df_raw["Label_Prodi"].tolist(),
-    default=df_raw["Label_Prodi"].tolist()[:5]
+    default=df_raw["Label_Prodi"].tolist()[:5]  # Ambil 5 teratas sebagai contoh default
 )
 
 if not pilihan_prodi:
-    st.warning("⚠️ Pilih minimal 1 program studi.")
+    st.warning("⚠️ Silakan pilih minimal 1 program studi untuk melanjutkan analisis.")
     st.stop()
 
 df_filtered = df_raw[df_raw["Label_Prodi"].isin(pilihan_prodi)].copy()
+
+st.markdown("---")
+st.write("🔧 **Pengaturan Skor Simulasi (Output Alif & Ghina):**")
 
 skor_alif_dict = {}
 skor_ghina_dict = {}
@@ -124,11 +135,12 @@ for idx, row in df_filtered.iterrows():
         skor_alif_dict[label] = st.slider(f"Skor Rapor (Alif) | {label}", 0, 100, 75, key=f"alif_{idx}")
     with cols_input[1]:
         skor_ghina_dict[label] = st.slider(f"Skor Minat RIASEC (Ghina) | {label}", 0, 100, 80, key=f"ghina_{idx}")
-    st.markdown("---")
+    st.markdown("")
 
 df_filtered["Skor Akademik (Alif)"] = df_filtered["Label_Prodi"].map(skor_alif_dict)
 df_filtered["Skor Minat RIASEC (Ghina)"] = df_filtered["Label_Prodi"].map(skor_ghina_dict)
 
+# Definisi Kriteria & Sifatnya (Benefit vs Cost)
 KRITERIA_TETAP = [
     "Skor Akademik (Alif)", 
     "Skor Minat RIASEC (Ghina)", 
@@ -136,7 +148,7 @@ KRITERIA_TETAP = [
     "Daya Tampung", 
     "Keketatan"
 ]
-TIPE_TETAP = ["benefit", "benefit", "benefit", "benefit", "cost"]
+TIPE_TETAP = ["benefit", "benefit", "benefit", "benefit", "cost"]  # Keketatan bersifat cost
 
 matriks_vikor_data = pd.DataFrame({
     "Skor Akademik (Alif)": df_filtered["Skor Akademik (Alif)"].values,
@@ -146,15 +158,17 @@ matriks_vikor_data = pd.DataFrame({
     "Keketatan": df_filtered["c4_keketatan"].values,
 }, index=df_filtered["Label_Prodi"].values)
 
-st.write("**Matriks Keputusan Final:**")
-st.dataframe(matriks_vikor_data, use_container_width=True)
+with st.expander("👁️ Lihat Tabel Matriks Keputusan Gabungan", expanded=False):
+    st.dataframe(matriks_vikor_data, use_container_width=True)
 
 st.divider()
 
 # ------------------------------------------------------------------
-# TAHAP 3: Preferensi Siswa
+# 5. TAHAP 3: Preferensi Bobot Kriteria oleh Siswa
 # ------------------------------------------------------------------
-st.subheader("3️⃣ Atur Preferensi Bobot Kriteria oleh Siswa")
+st.subheader("⚖️ Tahap 3: Preferensi Kepentingan Kriteria")
+st.caption("Atur tingkat kepentingan masing-masing kriteria berdasarkan kebutuhan siswa.")
+
 pref_user = {}
 cols_pref = st.columns(len(KRITERIA_TETAP))
 for i, krit in enumerate(KRITERIA_TETAP):
@@ -167,14 +181,17 @@ bobot_preferensi = pref_array / pref_array.sum()
 st.divider()
 
 # ------------------------------------------------------------------
-# TAHAP 4: Eksekusi VIKOR Murni
+# 6. TAHAP 4: Eksekusi VIKOR Murni & Hasil Akhir
 # ------------------------------------------------------------------
-st.subheader("4️⃣ Hasil Rekomendasi Peringkat Prodi")
+st.subheader("🏆 Tahap 4: Hasil Perankingan Rekomendasi PTN")
 
-if st.button("🚀 Jalankan Perhitungan VIKOR", type="primary"):
-    hasil = hitung_vikor(matriks_vikor_data, bobot_preferensi, TIPE_TETAP, v=v_strategi)
+if st.button("🚀 Jalankan Sistem Perangkingan VIKOR", type="primary"):
+    with st.spinner("Sedang menghitung nilai utilitas, penyesalan, dan indeks kompromi..."):
+        hasil = hitung_vikor(matriks_vikor_data, bobot_preferensi, TIPE_TETAP, v=v_strategi)
 
-    st.write("**Tabel Peringkat Rekomendasi (Nilai Q terkecil = Terbaik):**")
+    st.success("✅ Perhitungan Selesai!")
+    
+    st.write("**Tabel Peringkat Alternatif Prodi (Nilai Indeks \(Q\) Terkecil adalah Pilihan Terbaik):**")
     st.dataframe(hasil.style.format({"S": "{:.4f}", "R": "{:.4f}", "Q": "{:.4f}"}),
                  use_container_width=True, hide_index=True)
     
@@ -182,9 +199,9 @@ if st.button("🚀 Jalankan Perhitungan VIKOR", type="primary"):
 
     top_kampus = hasil.head(3)["Alternatif"].tolist()
     ranked_text = ", ".join([f"{i+1}. {nama}" for i, nama in enumerate(top_kampus)])
-    st.success(f"🏆 Rekomendasi Utama untuk Siswa: {ranked_text}")
+    st.success(f"🎉 **Rekomendasi Utama untuk Siswa:** {ranked_text}")
 
     csv_out = hasil.to_csv(index=False).encode("utf-8")
-    st.download_button("⬇️ Unduh Hasil Ranking (CSV)", csv_out, "hasil_rekomendasi_cp.csv", "text/csv")
+    st.download_button("⬇️ Unduh Laporan Hasil (CSV)", csv_out, "laporan_rekomendasi_cp.csv", "text/csv")
 else:
-    st.info("Unggah CSV, pilih prodi, sesuaikan slider, lalu klik tombol perhitungan.")
+    st.info("Silakan lengkapi langkah di atas, lalu klik tombol **Jalankan Sistem Perangkingan VIKOR**.")
