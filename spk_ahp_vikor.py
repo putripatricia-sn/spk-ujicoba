@@ -1,21 +1,17 @@
 """
 SPK Rekomendasi Kampus/Jurusan - Capstone Project (VIKOR Murni)
 =============================================================
-Versi khusus untuk Capstone Project kelompok:
-- Menggunakan metode VIKOR Murni.
-- Bobot kriteria diatur langsung oleh preferensi siswa (slider/ROC).
-- Tanpa modul AHP di aplikasi utama (agar bersih dan siap demo).
-
-Alur data:
-  Skor ML (input Alif) -> Database Kampus -> Matriks Keputusan
-  -> Bobot Preferensi -> VIKOR -> Ranking
+Versi update sesuai arsitektur:
+- Alif: Input Skor Akademik Rapor
+- Ghina: Input Skor Kecocokan Minat RIASEC
+- Kamu: Modul VIKOR Murni dengan studi kasus Rumpun MIPA & APAP
 """
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 
-st.set_page_config(page_title="SPK Rekomendasi Kampus - VIKOR", layout="wide")
+st.set_page_config(page_title="SPK Rekomendasi MIPA & APAP - VIKOR", layout="wide")
 
 # ------------------------------------------------------------------
 # Konstanta & Konfigurasi Default
@@ -28,15 +24,29 @@ DEFAULT_AKREDITASI_MAP = {
     "Belum Terakreditasi": 1,
 }
 
-KRITERIA_TETAP = ["Skor Kecocokan (ML)", "Akreditasi", "Daya Tampung", "Keketatan"]
-TIPE_TETAP = ["benefit", "benefit", "benefit", "cost"]  # keketatan tinggi = makin sulit diterima -> cost
+# 5 Kriteria Utama (Mencakup input Alif & Ghina)
+KRITERIA_TETAP = [
+    "Skor Akademik (Alif)", 
+    "Skor Minat RIASEC (Ghina)", 
+    "Akreditasi", 
+    "Daya Tampung", 
+    "Keketatan"
+]
+TIPE_TETAP = ["benefit", "benefit", "benefit", "benefit", "cost"]  # keketatan cost
 
+# Data Sampel Rumpun MIPA & APAP (Studi Kasus MA Kafila)
 SAMPLE_KAMPUS = pd.DataFrame({
-    "Nama Kampus": ["UGM", "UI", "UB", "ITB", "UNAIR"],
-    "Jurusan": ["Teknik Informatika"] * 5,
-    "Akreditasi": ["Unggul", "Unggul", "Baik Sekali", "Unggul", "Baik Sekali"],
-    "Daya Tampung": [120, 100, 150, 90, 110],
-    "Keketatan": [8.5, 9.2, 5.1, 9.8, 6.3],
+    "Nama Kampus": ["UI", "UGM", "UNJ", "UPI", "IPB"],
+    "Jurusan": [
+        "Matematika", 
+        "Statistika", 
+        "Pendidikan Matematika", 
+        "Pendidikan Biologi", 
+        "Statistika dan Data Sains"
+    ],
+    "Akreditasi": ["Unggul", "Unggul", "Unggul", "Baik Sekali", "Unggul"],
+    "Daya Tampung": [60, 50, 80, 75, 45],
+    "Keketatan": [4.2, 3.8, 8.5, 9.1, 5.0],
 })
 
 REQUIRED_COLS = ["Nama Kampus", "Jurusan", "Akreditasi", "Daya Tampung", "Keketatan"]
@@ -89,8 +99,8 @@ def hitung_vikor(data, bobot, tipe, v=0.5):
 # ------------------------------------------------------------------
 # UI - Header & Sidebar
 # ------------------------------------------------------------------
-st.title("🎓 SPK Rekomendasi Kampus & Jurusan (Capstone Project)")
-st.caption("Alur: Skor kecocokan dari model ML (Alif) → Database kampus → Preferensi Siswa → VIKOR → Ranking")
+st.title("🎓 SPK Rekomendasi Prodi MIPA & APAP (Capstone Project)")
+st.caption("Integrasi: Nilai Rapor (Alif) + Minat RIASEC (Ghina) + SPK VIKOR (Putri)")
 
 with st.sidebar:
     st.header("⚙️ Pengaturan VIKOR")
@@ -105,64 +115,54 @@ with st.sidebar:
 
 with st.expander("ℹ️ Keterangan Integrasi Tim", expanded=False):
     st.markdown("""
-    - **Modul Alif (Machine Learning):** Menghasilkan skor kecocokan akademik per jurusan.
-    - **Modul Ghina (Clustering RIASEC):** Menyaring/filter jurusan yang sesuai minat kepribadian siswa.
-    - **Modul Kamu (VIKOR):** Mengolah data akhir, menerapkan preferensi siswa, dan meranking PTN terbaik.
+    - **Modul Alif:** Memberikan *Skor Akademik Rapor* per jurusan MIPA/APAP.
+    - **Modul Ghina:** Memberikan *Skor Kecocokan Minat RIASEC* hasil kuesioner psikotes.
+    - **Modul Kamu (Putri):** Mengolah seluruh data dengan *VIKOR Murni* dan menampilkan ranking terbaik.
     """)
 
 st.divider()
 
 # ------------------------------------------------------------------
-# TAHAP 1: Database Kampus + Skor ML dari Alif
+# TAHAP 1: Database Kampus & Input Simulasi dari Alif & Ghina
 # ------------------------------------------------------------------
-st.subheader("1️⃣ Database Kampus & Jurusan")
-st.caption("Upload database kampus (.csv) atau sesuaikan data pada tabel di bawah.")
+st.subheader("1️⃣ Database Pilihan Prodi MIPA & APAP")
+st.markdown("Berikut adalah data alternatif prodi tujuan (Studi Kasus: MA Kafila).")
 
-col_up, col_dl = st.columns([2, 1])
-with col_up:
-    uploaded = st.file_uploader("Upload database kampus (.csv)", type=["csv"])
-with col_dl:
-    template_csv = SAMPLE_KAMPUS.to_csv(index=False).encode("utf-8")
-    st.download_button("⬇️ Unduh Template CSV", template_csv, "template_database_kampus.csv", "text/csv")
-
-if uploaded is not None:
-    df_raw = pd.read_csv(uploaded)
-    missing = [c for c in REQUIRED_COLS if c not in df_raw.columns]
-    if missing:
-        st.warning(f"⚠️ Kolom tidak lengkap: {missing}. Petakan manual di bawah:")
-        col_map = {}
-        map_cols = st.columns(len(REQUIRED_COLS))
-        for i, req_col in enumerate(REQUIRED_COLS):
-            with map_cols[i]:
-                pilihan_default = req_col if req_col in df_raw.columns else df_raw.columns[0]
-                col_map[req_col] = st.selectbox(f"'{req_col}'", options=list(df_raw.columns),
-                                                index=list(df_raw.columns).index(pilihan_default), key=f"map_{req_col}")
-        df_kampus = pd.DataFrame({req_col: df_raw[col_map[req_col]] for req_col in REQUIRED_COLS})
-    else:
-        df_kampus = df_raw[REQUIRED_COLS].copy()
-else:
-    df_kampus = SAMPLE_KAMPUS.copy()
-
+df_kampus = SAMPLE_KAMPUS.copy()
 df_kampus = st.data_editor(df_kampus, use_container_width=True, num_rows="dynamic", key="editor_kampus")
 
 if "Jurusan" not in df_kampus.columns or df_kampus.empty:
-    st.error("⚠️️ Data kampus belum lengkap / kolom 'Jurusan' tidak ditemukan.")
+    st.error("⚠️ Data prodi belum lengkap.")
     st.stop()
 
-st.subheader("2️⃣ Skor Kecocokan Akademik (Output Simulasi ML dari Alif)")
-daftar_jurusan = sorted(df_kampus["Jurusan"].dropna().unique().tolist())
-skor_ml = {}
-cols_ml = st.columns(min(len(daftar_jurusan), 4) or 1)
-for i, jurusan in enumerate(daftar_jurusan):
-    with cols_ml[i % 4]:
-        skor_ml[jurusan] = st.slider(f"Skor: {jurusan}", 0, 100, 75, key=f"ml_{jurusan}")
+st.subheader("2️⃣ Input Skor dari Modul Alif & Ghina (Simulasi)")
+st.caption("Slider ini mensimulasikan hasil olahan data siswa dari program Alif (nilai rapor) dan Ghina (tes minat RIASEC).")
 
-df_kampus["Skor Kecocokan (ML)"] = df_kampus["Jurusan"].map(skor_ml)
+daftar_label = [f"{row['Jurusan']} - {row['Nama Kampus']}" for _, row in df_kampus.iterrows()]
+skor_alif = {}
+skor_ghina = {}
+
+st.markdown("---")
+for i, label in enumerate(daftar_label):
+    st.write(f"**Pilihan {i+1}: {label}**")
+    c1, c2 = st.columns(2)
+    with c1:
+        skor_alif[label] = st.slider(f"Skor Akademik Rapor (Alif)", 0, 100, 75, key=f"alif_{i}")
+    with c2:
+        skor_ghina[label] = st.slider(f"Skor Minat RIASEC (Ghina)", 0, 100, 80, key=f"ghina_{i}")
+    st.markdown("")
+
+# Masukkan ke dataframe
+df_kampus["Label_Unik"] = daftar_label
+df_kampus["Skor Akademik (Alif)"] = df_kampus["Label_Unik"].map(skor_alif)
+df_kampus["Skor Minat RIASEC (Ghina)"] = df_kampus["Label_Unik"].map(skor_ghina)
 df_kampus["Akreditasi (angka)"] = df_kampus["Akreditasi"].map(akreditasi_map).fillna(0)
 
-st.write("**Matriks Keputusan Siap Hitung:**")
-matriks_view = df_kampus[["Nama Kampus", "Jurusan", "Skor Kecocokan (ML)",
-                          "Akreditasi (angka)", "Daya Tampung", "Keketatan"]]
+st.write("**Matriks Keputusan Lengkap (Siap Hitung):**")
+matriks_view = df_kampus[[
+    "Label_Unik", "Skor Akademik (Alif)", "Skor Minat RIASEC (Ghina)", 
+    "Akreditasi (angka)", "Daya Tampung", "Keketatan"
+]]
 st.dataframe(matriks_view, use_container_width=True, hide_index=True)
 
 st.divider()
@@ -171,7 +171,7 @@ st.divider()
 # TAHAP 2: Preferensi Siswa (Bobot VIKOR Murni)
 # ------------------------------------------------------------------
 st.subheader("3️⃣ Preferensi Kepentingan Kriteria oleh Siswa")
-st.caption("Siswa menggeser tingkat kepentingan tiap kriteria sesuai keinginan pribadinya.")
+st.caption("Siswa mengatur tingkat kepentingan dari 5 kriteria di bawah ini.")
 
 pref_user = {}
 cols_pref = st.columns(len(KRITERIA_TETAP))
@@ -187,31 +187,29 @@ st.divider()
 # ------------------------------------------------------------------
 # TAHAP 3: Eksekusi VIKOR Murni & Hasil
 # ------------------------------------------------------------------
-st.subheader("4️⃣ Hasil Rekomendasi Kampus")
+st.subheader("4️⃣ Hasil Rekomendasi Peringkat Prodi")
 
 def siapkan_matriks_vikor(df):
-    df = df.copy()
-    df["Label"] = df["Nama Kampus"].astype(str) + " — " + df["Jurusan"].astype(str)
-    data_vikor = df.set_index("Label")[
-        ["Skor Kecocokan (ML)", "Akreditasi (angka)", "Daya Tampung", "Keketatan"]
+    data_vikor = df.set_index("Label_Unik")[
+        ["Skor Akademik (Alif)", "Skor Minat RIASEC (Ghina)", "Akreditasi (angka)", "Daya Tampung", "Keketatan"]
     ]
     data_vikor.columns = KRITERIA_TETAP
     return data_vikor
 
-if st.button("🚀 Hitung Rekomendasi Kampus", type="primary"):
+if st.button("🚀 Hitung Rekomendasi Peringkat", type="primary"):
     data_vikor = siapkan_matriks_vikor(df_kampus)
     hasil = hitung_vikor(data_vikor, bobot_preferensi, TIPE_TETAP, v=v_strategi)
 
-    st.write("**Tabel Ranking Pilihan Kampus (Nilai Q terkecil = Terbaik):**")
+    st.write("**Tabel Ranking Pilihan Prodi (Nilai Q terkecil = Terbaik):**")
     st.dataframe(hasil.style.format({"S": "{:.4f}", "R": "{:.4f}", "Q": "{:.4f}"}),
                  use_container_width=True, hide_index=True)
     st.bar_chart(hasil.set_index("Kampus")["Q"])
 
     top3 = hasil.head(3)["Kampus"].tolist()
     ranked_text = ", ".join([f"{i+1}. {nama}" for i, nama in enumerate(top3)])
-    st.success(f"🏆 Rekomendasi Kampus Utama: {ranked_text}")
+    st.success(f"🏆 Rekomendasi Utama untuk Siswa: {ranked_text}")
 
     csv_out = hasil.to_csv(index=False).encode("utf-8")
     st.download_button("⬇️ Unduh Hasil Ranking (CSV)", csv_out, "hasil_rekomendasi_cp.csv", "text/csv")
 else:
-    st.info("Atur database dan preferensi di atas, lalu klik **Hitung Rekomendasi Kampus**.")
+    st.info("Atur database dan preferensi di atas, lalu klik **Hitung Rekomendasi Peringkat**.")
