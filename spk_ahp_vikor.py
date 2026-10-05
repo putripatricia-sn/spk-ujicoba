@@ -1,6 +1,6 @@
 """
 SPK Rekomendasi Kampus/Jurusan - Capstone Project (VIKOR Murni)
-Clean Version (Tanpa emoji, siap integrasi database backend)
+Clean Version (Tanpa emoji, membaca langsung data_jurusan_ptn.csv)
 """
 
 import streamlit as st
@@ -66,7 +66,7 @@ def map_akreditasi(val):
         return 1
 
 # ------------------------------------------------------------------
-# Load Database Master secara Otomatis
+# Load Database Master secara Otomatis dari Folder yang Sama
 # ------------------------------------------------------------------
 @st.cache_data
 def load_database():
@@ -75,7 +75,7 @@ def load_database():
         df["akreditasi_angka"] = df["akreditasi"].apply(map_akreditasi)
         df["Label_Prodi"] = df["jurusan"] + " — " + df["nama_ptn"]
         return df
-    except Exception:
+    except Exception as e:
         return None
 
 df_raw = load_database()
@@ -87,7 +87,7 @@ st.title("Sistem Pendukung Keputusan Pemilihan PTN")
 st.caption("Capstone Project - Metode VIKOR Murni")
 
 if df_raw is None:
-    st.error("File database 'data_jurusan_ptn.csv' tidak ditemukan pada direktori server. Pastikan file master sudah tersedia.")
+    st.error("File database 'data_jurusan_ptn.csv' tidak ditemukan pada direktori yang sama. Pastikan file berada di dalam folder Tugas Akhir.")
     st.stop()
 
 with st.sidebar:
